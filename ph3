@@ -1,0 +1,167 @@
+. routes/subscriptions.js
+js
+Copy code
+const express = require('express');
+const router = express.Router();
+const { firestore } = require('../services/firebase');
+const { verifyFirebaseToken } = require('../middleware/authMiddleware');
+
+router.use(verifyFirebaseToken);
+
+// Get all subscriptions for authenticated user
+router.get('/', async (req, res) => {
+  try {
+    const subsRef = firestore.collection('users').doc(req.user.uid).collection('subscriptions');
+    const subsSnap = await subsRef.get();
+    const subscriptions = subsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.json(subscriptions);
+  } catch (error) {
+    console.error('Error fetching subscriptions:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Create new subscription
+router.post('/', async (req, res) => {
+  const { name, price, renewalDate } = req.body;
+  if (!name || !price) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+  try {
+    const subsRef = firestore.collection('users').doc(req.user.uid).collection('subscriptions');
+    const docRef = await subsRef.add({ name, price, renewalDate: renewalDate || null, createdAt: new Date() });
+    res.status(201).json({ id: docRef.id, name, price, renewalDate });
+  } catch (error) {
+    console.error('Error creating subscription:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update subscription
+router.put('/:id', async (req, res) => {
+  const subId = req.params.id;
+  const { name, price, renewalDate } = req.body;
+  try {
+    const subRef = firestore.collection('users').doc(req.user.uid).collection('subscriptions').doc(subId);
+    await subRef.update({ name, price, renewalDate });
+    res.json({ id: subId, name, price, renewalDate });
+  } catch (error) {
+    console.error('Error updating subscription:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete subscription
+router.delete('/:id', async (req, res) => {
+  const subId = req.params.id;
+  try {
+    const subRef = firestore.collection('users').doc(req.user.uid).collection('subscriptions').doc(subId);
+    await subRef.delete();
+    res.json({ message: 'Subscription deleted', id: subId });
+  } catch (error) {
+    console.error('Error deleting subscription:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+module.exports = router;
+8. routes/payments.js
+js
+Copy code
+const express = require('express');
+const router = express.Router();
+const { verifyFirebaseToken } = require('../middleware/authMiddleware');
+const { processPayment, handleSquareWebhook } = require('../services/paymentService');
+
+router.use(verifyFirebaseToken);
+
+// Endpoint to create a payment - you will expand this based on frontend requests
+router.post('/create-payment', async (req, res) => {
+  const { nonce, amount } = req.body;
+  if (!nonce || !amount) {
+    return res.status(400).json({ error: 'Missing payment nonce or amount' });
+  }
+  try {
+    const paymentResult = await processPayment(req.user.uid, nonce, amount);
+    res.json(paymentResult);
+  } catch (error) {
+    console.error('Error processing payment:', error);
+    res.status(500).json({ error: 'Payment processing failed' });
+  }
+});
+
+// Square webhook receiver (public endpoint, verify signature inside service)
+router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  try {
+    await handleSquareWebhook(req);
+    res.status(200).send('OK');
+  } catch (error) {
+    console.error('Error handling Square webhook:', error);
+    res.status(500).send('Webhook processing failed');
+  }
+});
+
+module.exports = router;
+9. services/paymentService.js
+js
+Copy code
+const { Client, Environment } = require('square');
+const { firestore } = require('./firebase');
+
+const squareClient = new Client({
+  environment: process.env.NODE_ENV === 'production' ? Environment.Production : Environment.Sandbox,
+  accessToken: process.env.SQUARE_ACCESS_TOKEN,
+});
+
+const paymentsApi = squareClient.paymentsApi;
+
+async function processPayment(userId, nonce, amount) {
+  const requestBody = {
+    sourceId: nonce,
+    amountMoney: {
+      amount: parseInt(amount, 10), // amount in cents
+      currency: 'USD',
+    },
+    idempotencyKey: require('crypto').randomUUID(),
+  };
+
+  const response = await paymentsApi.createPayment(requestBody);
+
+  if (response.result.payment.status === 'COMPLETED') {
+    // Record payment in Firestore under user payments collection
+    await firestore.collection('users').doc(userId).collection('payments').add({
+      amount,
+      status: 'COMPLETED',
+      paymentId: response.result.payment.id,
+      createdAt: new Date(),
+    });
+  }
+
+  return response.result.payment;
+}
+
+// Webhook handling (basic example - expand with signature validation)
+async function handleSquareWebhook(req) {
+  const event = JSON.parse(req.body.toString());
+  // Implement webhook event processing here
+  // e.g. update subscription status based on payment
+  console.log('Square webhook event received:', event);
+}
+
+module.exports = { processPayment, handleSquareWebhook };
+Add these to your project and import the new routes into app.js:
+
+js
+Copy code
+const subscriptionRoutes = require('./routes/subscriptions');
+const paymentRoutes = require('./routes/payments');
+
+app.use('/api/subscriptions', subscriptionRoutes);
+app.use('/api/payments', paymentRoutes);
+Once you’re set up with these, you’ll have:
+
+Full CRUD API for subscriptions per user
+
+Payment processing with Square, including webhook support
+
+Let me know when you’re ready for Phase 4: Analytics & Remote Config API.
