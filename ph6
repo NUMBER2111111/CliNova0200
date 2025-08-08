@@ -1,0 +1,189 @@
+Phase 6: Extended Security, Performance & UX Enhancements
+Includes:
+
+Enhanced security middleware with rate limiting, helmet, and CORS
+
+Onboarding flow component (React)
+
+Caching middleware example (Express)
+
+Basic performance optimizations setup
+
+Example environment variable management
+
+1. middleware/security.js
+js
+Copy code
+const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
+const cors = require('cors');
+
+const securityMiddleware = [
+  helmet(),
+  cors({
+    origin: ['https://yourdomain.com'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    credentials: true,
+  }),
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+    message: 'Too many requests from this IP, please try again later.',
+  }),
+];
+
+module.exports = securityMiddleware;
+2. middleware/cache.js (Simple caching example)
+js
+Copy code
+const cache = new Map();
+
+function cacheMiddleware(durationSeconds) {
+  return (req, res, next) => {
+    const key = req.originalUrl;
+    if (cache.has(key)) {
+      const cached = cache.get(key);
+      const now = Date.now();
+      if (now - cached.timestamp < durationSeconds * 1000) {
+        return res.json(cached.data);
+      }
+      cache.delete(key);
+    }
+    res.sendResponse = res.json;
+    res.json = (body) => {
+      cache.set(key, { data: body, timestamp: Date.now() });
+      res.sendResponse(body);
+    };
+    next();
+  };
+}
+
+module.exports = cacheMiddleware;
+3. React Onboarding Component frontend/src/components/Onboarding.jsx
+jsx
+Copy code
+import React, { useState } from 'react';
+
+export default function Onboarding({ onComplete }) {
+  const [step, setStep] = useState(1);
+
+  function nextStep() {
+    if (step < 3) setStep(step + 1);
+    else onComplete();
+  }
+
+  return (
+    <div>
+      {step === 1 && <p>Welcome to Clinova! Let's get started.</p>}
+      {step === 2 && <p>Set your preferences.</p>}
+      {step === 3 && <p>All set! Ready to use the app.</p>}
+      <button onClick={nextStep}>{step < 3 ? 'Next' : 'Finish'}</button>
+    </div>
+  );
+}
+4. Example .env Variables
+env
+Copy code
+PORT=4000
+FIREBASE_PROJECT_ID=your-firebase-project-id
+FIREBASE_CLIENT_EMAIL=your-firebase-client-email
+FIREBASE_PRIVATE_KEY="your-firebase-private-key"
+SQUARE_ACCESS_TOKEN=your-square-access-token
+SQUARE_LOCATION_ID=your-square-location-id
+Phase 7: Marketing, Support & Testing Integration
+Includes:
+
+Marketing automation sample with Mailchimp integration
+
+In-app chat support widget (Tawk.to) example
+
+Testing & CI scripts in package.json
+
+Example test file for backend routes using Jest
+
+1. services/marketingService.js
+js
+Copy code
+const axios = require('axios');
+
+async function subscribeUserToNewsletter(email) {
+  const apiKey = process.env.MAILCHIMP_API_KEY;
+  const listId = process.env.MAILCHIMP_LIST_ID;
+
+  const data = {
+    email_address: email,
+    status: 'subscribed',
+  };
+
+  const url = `https://usX.api.mailchimp.com/3.0/lists/${listId}/members`;
+
+  try {
+    const response = await axios.post(url, data, {
+      auth: {
+        username: 'anystring',
+        password: apiKey,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Mailchimp subscription error:', error.response.data);
+    throw error;
+  }
+}
+
+module.exports = { subscribeUserToNewsletter };
+2. React Chat Widget frontend/src/components/ChatWidget.jsx
+jsx
+Copy code
+import { useEffect } from 'react';
+
+export default function ChatWidget() {
+  useEffect(() => {
+    var Tawk_API = Tawk_API || {};
+    var Tawk_LoadStart = new Date();
+    (function () {
+      var s1 = document.createElement('script');
+      s1.async = true;
+      s1.src = 'https://embed.tawk.to/YOUR_TAWK_ID/default';
+      s1.charset = 'UTF-8';
+      s1.setAttribute('crossorigin', '*');
+      document.body.appendChild(s1);
+    })();
+  }, []);
+
+  return null;
+}
+3. package.json Scripts
+json
+Copy code
+"scripts": {
+  "start": "node backend/app.js",
+  "test": "jest",
+  "lint": "eslint .",
+  "ci": "npm run lint && npm run test"
+}
+4. Sample Jest Test tests/auth.test.js
+js
+Copy code
+const request = require('supertest');
+const app = require('../app');
+
+describe('Auth Routes', () => {
+  test('POST /api/auth/verify-token returns 400 without token', async () => {
+    const response = await request(app).post('/api/auth/verify-token').send({});
+    expect(response.statusCode).toBe(400);
+    expect(response.body.error).toBe('No token provided');
+  });
+});
+If you want, I can help you implement and integrate these parts next.
+
+Let me know!
+
+
+
+
+
+
+
+
+Ask ChatGPT
