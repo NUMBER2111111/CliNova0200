@@ -1,0 +1,92 @@
+Here’s Phase 7: Marketing, Support & Testing Integration in full detail, ready for integration into your Clinova app backend and frontend.
+
+1. Marketing Automation Service — services/marketingService.js
+js
+Copy code
+const axios = require('axios');
+
+async function subscribeUserToNewsletter(email) {
+  const apiKey = process.env.MAILCHIMP_API_KEY;
+  const listId = process.env.MAILCHIMP_LIST_ID;
+
+  const data = {
+    email_address: email,
+    status: 'subscribed',
+  };
+
+  const url = `https://usX.api.mailchimp.com/3.0/lists/${listId}/members`;
+
+  try {
+    const response = await axios.post(url, data, {
+      auth: {
+        username: 'anystring',
+        password: apiKey,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Mailchimp subscription error:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
+module.exports = { subscribeUserToNewsletter };
+Note: Replace usX in the URL with your Mailchimp data center code (e.g., us19).
+
+2. React Chat Widget Component — frontend/src/components/ChatWidget.jsx
+jsx
+Copy code
+import { useEffect } from 'react';
+
+export default function ChatWidget() {
+  useEffect(() => {
+    var Tawk_API = Tawk_API || {};
+    var Tawk_LoadStart = new Date();
+    (function () {
+      var s1 = document.createElement('script');
+      s1.async = true;
+      s1.src = 'https://embed.tawk.to/YOUR_TAWK_ID/default';
+      s1.charset = 'UTF-8';
+      s1.setAttribute('crossorigin', '*');
+      document.body.appendChild(s1);
+    })();
+  }, []);
+
+  return null;
+}
+Replace 'YOUR_TAWK_ID' with your actual Tawk.to widget ID.
+
+3. package.json Scripts for Testing & CI
+json
+Copy code
+{
+  "scripts": {
+    "start": "node backend/app.js",
+    "test": "jest",
+    "lint": "eslint .",
+    "ci": "npm run lint && npm run test"
+  }
+}
+4. Sample Jest Test for Auth Endpoint — tests/auth.test.js
+js
+Copy code
+const request = require('supertest');
+const app = require('../app');
+
+describe('Auth Routes', () => {
+  test('POST /api/auth/verify-token returns 400 without token', async () => {
+    const response = await request(app).post('/api/auth/verify-token').send({});
+    expect(response.statusCode).toBe(400);
+    expect(response.body.error).toBe('No token provided');
+  });
+});
+Integration Notes:
+Ensure you install necessary dev dependencies:
+
+bash
+Copy code
+npm install --save-dev jest supertest eslint
+Configure Jest by adding "jest": { "testEnvironment": "node" } in your package.json or a separate jest.config.js.
+
+Add your Mailchimp API key and list ID, and Tawk.to widget ID to your environment variables or config.
+
