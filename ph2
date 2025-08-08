@@ -1,0 +1,75 @@
+. middleware/authMiddleware.js
+js
+Copy code
+const { auth } = require('../services/firebase');
+
+async function verifyFirebaseToken(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized: No token provided' });
+  }
+  const idToken = authHeader.split('Bearer ')[1];
+  try {
+    const decodedToken = await auth.verifyIdToken(idToken);
+    req.user = decodedToken;
+    next();
+  } catch (error) {
+    console.error('Error verifying Firebase ID token:', error);
+    return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+  }
+}
+
+module.exports = { verifyFirebaseToken };
+5. routes/auth.js
+js
+Copy code
+const express = require('express');
+const router = express.Router();
+const { auth } = require('../services/firebase');
+
+// For now, only token verification endpoint
+router.post('/verify-token', async (req, res) => {
+  const { idToken } = req.body;
+  if (!idToken) {
+    return res.status(400).json({ error: 'No token provided' });
+  }
+  try {
+    const decodedToken = await auth.verifyIdToken(idToken);
+    return res.json({ uid: decodedToken.uid, email: decodedToken.email });
+  } catch (error) {
+    console.error('Error verifying token:', error);
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+});
+
+module.exports = router;
+6. routes/users.js (Optional for user profiles)
+js
+Copy code
+const express = require('express');
+const router = express.Router();
+const { firestore } = require('../services/firebase');
+const { verifyFirebaseToken } = require('../middleware/authMiddleware');
+
+router.use(verifyFirebaseToken);
+
+router.get('/profile', async (req, res) => {
+  try {
+    const userDoc = await firestore.collection('users').doc(req.user.uid).get();
+    if (!userDoc.exists) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json(userDoc.data());
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+module.exports = router;
+Add routes/users.js to app.js when you want user profile endpoints:
+
+js
+Copy code
+const userRoutes = require('./routes/users');
+app.use('/api/users', userRoutes);
